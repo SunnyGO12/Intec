@@ -6,6 +6,8 @@
     <title>Registro de Cortes de Carne - Miércoles</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.17.1/dist/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js"></script>
     <style>
         body {
             font-family: 'Roboto', sans-serif;
@@ -99,6 +101,22 @@
             text-align: center;
         }
     </style>
+
+    <script>
+        // Configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5hMJzLrddkGs8fPYXBZ2-PJg1d2CQGM",
+            authDomain: "limcova-74d32.firebaseapp.com",
+            projectId: "limcova-74d32",
+            storageBucket: "limcova-74d32.appspot.com",
+            messagingSenderId: "749412183642",
+            appId: "1:749412183642:web:1bd2469991ef6cc59b263"
+        };
+
+        // Inicializa Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+    </script>
 </head>
 <body>
     <header>
@@ -133,7 +151,7 @@
         </div>
 
         <button id="exportToExcel" class="back-button">Exportar a Excel</button>
-        <button class="back-button" onclick="window.location.href='index.html'">Volver al Menú Principal</button>
+        <button class="back-button" onclick="window.location.href='HMI1.html'">Volver al Menú Principal</button>
     </div>
 
     <script>
@@ -177,16 +195,18 @@
             const totalMiercoles = category1 + category2 + category3 + category4;
             document.getElementById('totalMiercoles').innerText = totalMiercoles.toFixed(2);
 
-            // Recuperar la semana seleccionada desde el URL
             const params = new URLSearchParams(window.location.search);
             const selectedWeek = params.get('week') || 1; // Si no está presente, selecciona semana 1
 
-            // Guardar los datos en localStorage con clave única por semana
-            localStorage.setItem(`week${selectedWeek}_miercoles`, totalMiercoles);
-            localStorage.setItem(`week${selectedWeek}_miercolesCorte1`, category1);
-            localStorage.setItem(`week${selectedWeek}_miercolesCorte2`, category2);
-            localStorage.setItem(`week${selectedWeek}_miercolesCorte3`, category3);
-            localStorage.setItem(`week${selectedWeek}_miercolesCorte4`, category4);
+            // Guardar los datos en Firebase en lugar de localStorage
+            const data = {
+                miercoles: totalMiercoles,
+                miercolesCorte1: category1,
+                miercolesCorte2: category2,
+                miercolesCorte3: category3,
+                miercolesCorte4: category4
+            };
+            database.ref(`semanas/semana${selectedWeek}`).update(data);
         }
 
         document.getElementById('cutsForm').addEventListener('submit', function(e) {
@@ -208,38 +228,39 @@
         });
 
         function loadSavedData() {
-            // Recuperar la semana seleccionada
             const params = new URLSearchParams(window.location.search);
             const selectedWeek = params.get('week') || 1;
 
-            const savedTotalMiercoles = parseFloat(localStorage.getItem(`week${selectedWeek}_miercoles`)) || 0;
-            const savedCorte1 = parseFloat(localStorage.getItem(`week${selectedWeek}_miercolesCorte1`)) || 0;
-            const savedCorte2 = parseFloat(localStorage.getItem(`week${selectedWeek}_miercolesCorte2`)) || 0;
-            const savedCorte3 = parseFloat(localStorage.getItem(`week${selectedWeek}_miercolesCorte3`)) || 0;
-            const savedCorte4 = parseFloat(localStorage.getItem(`week${selectedWeek}_miercolesCorte4`)) || 0;
+            // Recuperar datos de Firebase en lugar de localStorage
+            database.ref(`semanas/semana${selectedWeek}`).once('value').then(function(snapshot) {
+                const data = snapshot.val() || {};
+                const savedTotalMiercoles = data.miercoles || 0;
+                const savedCorte1 = data.miercolesCorte1 || 0;
+                const savedCorte2 = data.miercolesCorte2 || 0;
+                const savedCorte3 = data.miercolesCorte3 || 0;
+                const savedCorte4 = data.miercolesCorte4 || 0;
 
-            document.getElementById('totalMiercoles').innerText = savedTotalMiercoles.toFixed(2);
-            updateChart([savedCorte1, savedCorte2, savedCorte3, savedCorte4]);
+                document.getElementById('totalMiercoles').innerText = savedTotalMiercoles.toFixed(2);
+                updateChart([savedCorte1, savedCorte2, savedCorte3, savedCorte4]);
+            });
         }
 
         document.getElementById('exportToExcel').addEventListener('click', function() {
             const params = new URLSearchParams(window.location.search);
             const selectedWeek = params.get('week') || 1;
 
-            const wb = XLSX.utils.book_new();
-            const ws_data = [
-                ['Corte Musculo Rojo', 'Corte Conectivo', 'Corte Graso', 'Corte Vascular', `Total Miércoles Semana ${selectedWeek}`],
-                [
-                    localStorage.getItem(`week${selectedWeek}_miercolesCorte1`) || 0,
-                    localStorage.getItem(`week${selectedWeek}_miercolesCorte2`) || 0,
-                    localStorage.getItem(`week${selectedWeek}_miercolesCorte3`) || 0,
-                    localStorage.getItem(`week${selectedWeek}_miercolesCorte4`) || 0,
-                    localStorage.getItem(`week${selectedWeek}_miercoles`) || 0
-                ]
-            ];
-            const ws = XLSX.utils.aoa_to_sheet(ws_data);
-            XLSX.utils.book_append_sheet(wb, ws, `Datos de Cortes Semana ${selectedWeek}`);
-            XLSX.writeFile(wb, `RegistroCortesMiercoles_Semana${selectedWeek}.xlsx`);
+            database.ref(`semanas/semana${selectedWeek}`).once('value').then(function(snapshot) {
+                const data = snapshot.val() || {};
+                const ws_data = [
+                    ['Corte Musculo Rojo', 'Corte Conectivo', 'Corte Graso', 'Corte Vascular', `Total Miércoles Semana ${selectedWeek}`],
+                    [data.miercolesCorte1 || 0, data.miercolesCorte2 || 0, data.miercolesCorte3 || 0, data.miercolesCorte4 || 0, data.miercoles || 0]
+                ];
+
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                XLSX.utils.book_append_sheet(wb, ws, `Datos de Cortes Semana ${selectedWeek}`);
+                XLSX.writeFile(wb, `RegistroCortesMiercoles_Semana${selectedWeek}.xlsx`);
+            });
         });
 
         window.addEventListener('load', function() {
